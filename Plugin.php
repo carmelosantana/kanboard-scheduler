@@ -24,7 +24,12 @@ class Plugin extends Base
         $this->hook->on('template:layout:top', array(
             'template' => 'SchedulerPlugin:layout/webcron',
             'callable' => function () use ($container) {
-                (new \Kanboard\Plugin\SchedulerPlugin\Trigger\WebCronTrigger($container))->maybeRun();
+                // A failing sweep must never break the page render of whoever triggered it.
+                try {
+                    (new \Kanboard\Plugin\SchedulerPlugin\Trigger\WebCronTrigger($container))->maybeRun();
+                } catch (\Throwable $exception) {
+                    $container['logger']->error('SchedulerPlugin web-cron failed: '.$exception->getMessage());
+                }
                 return array();
             },
         ));
