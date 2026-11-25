@@ -10,8 +10,8 @@ class SchedulerLogModelTest extends Base
     protected function setUp(): void
     {
         parent::setUp();
-        require_once __DIR__.'/../Schema/Sqlite.php';
-        \Kanboard\Plugin\SchedulerPlugin\Schema\version_1($this->container['db']->getConnection());
+        require_once __DIR__.'/schema.php';
+        scheduler_test_schema($this->container['db']->getConnection());
     }
 
     public function testCreateRecordFinishAndRead()
