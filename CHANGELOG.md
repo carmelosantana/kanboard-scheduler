@@ -2,6 +2,15 @@
 
 All notable changes to the SchedulerPlugin will be documented in this file.
 
+## [1.0.1] - 2026-11-25
+
+### Fixed
+- Web-cron: two concurrent page requests could both see "not run today" and both run the
+  sweep. The day is now claimed with an atomic conditional update (SQLite, MariaDB, Postgres),
+  so only one request sweeps.
+- Web-cron: an exception in the sweep no longer breaks the page render of the request that
+  triggered it; it is logged as an error.
+
 ## [1.0.0] - 2026-07-07
 
 ### Added

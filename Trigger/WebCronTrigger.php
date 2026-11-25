@@ -6,8 +6,9 @@ use Kanboard\Core\Base;
 
 /**
  * Lazy web-cron: fires the daily sweep at most once per day, on the first
- * rendered page request past the configured target hour. Stamps last_run
- * BEFORE running so a burst of concurrent requests cannot double-fire.
+ * rendered page request past the configured target hour. Claims the day with an
+ * atomic conditional update of last_run BEFORE running, so of two concurrent
+ * requests that both read "not run today", only one sweeps.
  */
 class WebCronTrigger extends Base
 {
@@ -20,7 +21,8 @@ class WebCronTrigger extends Base
         }
 
         $today = date('Y-m-d');
-        if ($config->getLastRun() === $today) {
+        $lastRun = $config->getLastRun();
+        if ($lastRun === $today) {
             return false;
         }
 
@@ -28,8 +30,10 @@ class WebCronTrigger extends Base
             return false;
         }
 
-        // Claim the day first, then run.
-        $config->setLastRun($today);
+        // Claim the day first, then run. Losing the claim means another request is sweeping.
+        if (! $config->claimLastRun($lastRun, $today)) {
+            return false;
+        }
         $this->schedulerRunner->run(array('trigger' => 'web'));
 
         return true;

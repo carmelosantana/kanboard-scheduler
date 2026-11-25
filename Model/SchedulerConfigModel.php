@@ -3,6 +3,8 @@
 namespace Kanboard\Plugin\SchedulerPlugin\Model;
 
 use Kanboard\Core\Base;
+use Kanboard\Model\ConfigModel;
+use PDO;
 use Kanboard\Model\ProjectModel;
 use Kanboard\Model\TaskModel;
 
@@ -97,6 +99,38 @@ class SchedulerConfigModel extends Base
         // double-fire guard) would return the stale pre-save value. flush() avoids
         // coupling to core's internal proxy-cache key format.
         $this->memoryCache->flush();
+    }
+
+    /**
+     * Atomically move last_run from $expected to $ymd. Returns true for the one caller whose
+     * $expected still matched; a concurrent claim that got there first makes this return false.
+     * Same per-driver conditional upsert as Deed's WebCron::claimSlot (SQLite, Postgres, MySQL/MariaDB).
+     */
+    public function claimLastRun($expected, $ymd)
+    {
+        $pdo = $this->db->getConnection();
+        $table = ConfigModel::TABLE;
+        $now = time();
+        $parameters = array(self::LAST_RUN, (string) $ymd, $now, (string) $expected);
+
+        if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
+            $sql = "INSERT INTO {$table} (`option`, `value`, changed_on) VALUES (?, ?, ?)
+                    ON DUPLICATE KEY UPDATE
+                        changed_on = IF(COALESCE(`value`, '') = ?, VALUES(changed_on), changed_on),
+                        `value` = IF(COALESCE(`value`, '') = ?, VALUES(`value`), `value`)";
+            $parameters[] = (string) $expected;
+        } else {
+            $sql = "INSERT INTO {$table} (\"option\", \"value\", changed_on) VALUES (?, ?, ?)
+                    ON CONFLICT (\"option\") DO UPDATE SET
+                        \"value\" = excluded.\"value\", changed_on = excluded.changed_on
+                    WHERE COALESCE({$table}.\"value\", '') = ?";
+        }
+
+        $statement = $pdo->prepare($sql);
+        $statement->execute($parameters);
+        $this->memoryCache->flush();
+
+        return $statement->rowCount() > 0;
     }
 
     public function isProjectEnabled($projectId)
