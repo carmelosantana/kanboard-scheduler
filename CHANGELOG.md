@@ -2,7 +2,7 @@
 
 All notable changes to the SchedulerPlugin will be documented in this file.
 
-## [1.0.1] - Unreleased
+## [1.0.1] - 2026-11-25
 
 ### Fixed
 - Web-cron: two concurrent page requests could both see "not run today" and both run the
